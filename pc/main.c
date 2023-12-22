@@ -8,10 +8,10 @@ typedef int32_t bool32;
 bool32 PTrue = 1;
 bool32 PFalse = 0;
 
-typedef int64_t i64;
 #include "def.h"
-#include "ast.h"
 
+#include "ast.h"
+#include "list.h"
 
 void HandleKeywords(const char *Word)
 {
@@ -91,6 +91,10 @@ void toknext(int UpdateSource)
         case '{': {Tok.Kind = TOK_LBRACE; Tok.Text = "{";  Src++;}break;
         case '}': {Tok.Kind = TOK_RBRACE; Tok.Text = "}";  Src++;}break;
         case ',':{Tok.Kind = TOK_COMMA; Tok.Text = ","; Src++;}break;
+        case '[':{Tok.Kind = TOK_LBRACK; Tok.Text = "["; Src++;}break;
+        case ']':{Tok.Kind = TOK_RBRACK; Tok.Text = "]"; Src++;}break;
+        case '(':{Tok.Kind = TOK_LPAREN; Tok.Text = "("; Src++;}break;
+        case ')':{Tok.Kind = TOK_RPAREN; Tok.Text = ")"; Src++;}break;
         default:
         {
             printf("Default %c\n", *Src);
@@ -105,7 +109,7 @@ void toknext(int UpdateSource)
         PSource = Src;
     }
     
-    printf("Lexed: %s\n", Tok.Text);
+    //printf("Lexed: %s\n", Tok.Text);
     
 }
 
@@ -119,46 +123,52 @@ void TokNext(void)
     toknext(1);
 }
 
-
-typedef struct Keyword
+EnumItem *
+InitEnumItemList( void *Head, EnumItem *ItemToAdd)
 {
-    const char *keyword;
-    struct Keyword *Next;
-}Keyword;
-
-Keyword *Keywords = NULL;
-
-void AddKeyword(const char* keyword)
-{
-    Keyword* Temp = malloc(sizeof(Keyword));
-    Temp->keyword = keyword;
-	Temp->Next = NULL;
-	if(Keywords == NULL)
+    
+    ItemToAdd->Next = NULL;
+    
+    if(Head  == NULL)
 	{
-        Keywords = Temp; 
+        Head = ItemToAdd; 
+        return Head;
         
-	}
-	else{
-        
-        for(Keyword *it = Keywords; it != NULL; it = it->Next){
-            
-            if(strcmp(it->keyword,keyword) == 0)
-            {
-                printf("Duplicate keyword: %s\n", keyword);
-            }
-        }
-        
-		Keyword* It = Keywords;  
-		while(It->Next!=NULL)
-		{
-            It = It->Next;
-            
-		}
-        
-		It->Next = Temp;
 	}
 }
 
+void
+AddEnumItemToList(void *Head,  EnumItem *Item)
+{
+    
+    
+    Item->Next = NULL;
+    
+    //TODO:
+    /*Make sure that if there is a comma at end of enum list, 
+that the comma/rbrace doesnt get added to enum lsit and effective
+err message*/
+    
+    for(EnumItem *DupIt = Head; DupIt != NULL; DupIt = DupIt->Next)
+    {
+        if(strcmp(DupIt->Name, Item->Name) == 0)
+        {
+            printf("Duplicate enum var: %s\n", Item->Name);
+            exit(-1);
+        }
+        
+    }
+    
+    EnumItem* It = Head;  
+    while(It->Next!=NULL)
+    {
+        It = It->Next;
+        
+    }
+    
+    It->Next = Item;
+    
+}
 
 bool32 IsToken(TokenKind kind)
 {
@@ -169,30 +179,12 @@ const char *IntKeyword = "int";
 const char *StructKeyword = "struct";
 const char *CharKeyword = "char";
 
-
-Typespec *
-ParseCType()
-{
-    
-    Typespec *Type = malloc(sizeof(Typespec));
-    printf("CType: %s\n", Tok.Text);
-    if(strcmp(Tok.Text, "int" ) == 0){ 
-        
-        Type->kind = TYPESPEC_CINT;
-        Type->name = "int";
-        
-        return Type;
-    }
-    
-    printf("Couldn't parse CType!\n");
-    return NULL;
-}
-
 Typespec *
 ParsePType()
 {
     
     //printf("PType: %s\n", Tok.Text);
+    
     if(strcmp(Tok.Text, "i64") == 0)
     {
         Typespec *Type = malloc(sizeof(Typespec));
@@ -200,21 +192,30 @@ ParsePType()
         Type->name = "i64";
         return Type;
     }
+    else if(strcmp(Tok.Text, "struct") == 0)
+    {
+        Typespec *Type = malloc(sizeof(Typespec));
+        Type->kind = TYPESPEC_ARRAY;
+        return Type;
+    }
+    else if(strcmp(Tok.Text, "enum") == 0)
+    {
+        Typespec *Type = malloc(sizeof(Typespec));
+        Type->kind = TYPESPEC_ENUM;
+        Type->name = "enum";
+        return Type;
+    }
+    else if(strcmp(Tok.Text, "fn") == 0)
+    {
+        Typespec *Type = malloc(sizeof(Typespec));
+        Type->kind = TYPESPEC_FUNC;
+        Type->name = "fn";
+        return Type;
+    }
     
     printf("Couldn't parse PType!\n");
     return NULL;
-}
-
-
-
-Decl *DeclCVar(const char *Name, Typespec *Type, Expr *expr)
-{
-    Decl *decl = malloc(sizeof(Decl));
-    decl->kind = DECL_CVAR;
-    decl->name = Name;
-    decl->var.type = Type;
     
-    return decl;
 }
 
 
@@ -241,115 +242,288 @@ bool32 TokExpect(TokenKind kind, const char *Expected)
         
     }
     
-    printf("TokExpect failed with expected: %s, actual: %s\n", Expected, Tok.Text);
+    printf("TokExpect failed with expected:%s, actual: %s\n", Expected, Tok.Text);
     TokNext();
     return PFalse;
-}
-
-Decl* ParseDeclCInt()
-{
-    
-    Typespec *Type = ParseCType();
-    
-    Expr *expr= NULL;
-    TokNext();
-    const char *Name = Tok.Text;
-    
-    TokNext();
-    
-    bool32 e = TokExpect(TOK_SEMI, ";");
-    
-    return DeclCVar(Name, Type, expr);
-}
-
-Typespec *
-ParseCStruct()
-{
-    Typespec *Type = malloc(sizeof(Typespec));
-    if(strcmp(Tok.Text, "struct") == 0)
-    {
-        //Type->kind = TYPESPEC
-    }
 }
 
 AggregateItem *
 ParseDeclAggregateItem()
 {
-    Buffer *Names = malloc(sizeof(Buffer));
-    InitBuffer(Names);
     
-    Typespec *Type = NULL;//ParseCStructType();
-    
+    AggItemName *Names = NULL;
+    Names = InitAggNameList(Names, Tok.Text);
     TokNext();
-    const char* Name = Tok.Text;
-    AddBuf(Names, Name);
-    
-    TokNext();
-    /*while(IsToken(TOK_COMMA)){
-        AddBuf(Names, Tok.Text);
+    while(IsToken(TOK_COMMA)){
+        
+        TokNext();
+        
+        AddAggName(Names, Tok.Text);
+        TokNext();
+        if(IsToken(TOK_COLON)) { TokNext(); break;}
+        
     }
-    TokNext();*/
-    TokExpect(TOK_SEMI, ";");
     
+    TokNext();
+    Typespec *Type = ParsePType();
     AggregateItem *it = malloc(sizeof(AggregateItem));
-    //it->Names = Names;
-    //it->NumNames =  LengthOfArray(Names);
+    
+    it->Names = malloc(sizeof(AggItemName));
+    it->Names = Names;
     it->Type = Type;
+    
     return it;
 }
 
 
 Decl *
-DeclAggregate(DeclKind Kind, const char *Name, void*Items, size_t NumItems)
+DeclAggregate(DeclKind Kind, const char *Name, AggregateItem *Items, size_t NumItems)
 {
-    PAssert(Kind == DECL_CSTRUCT || Kind == DECL_UNION, "Not a struct or union");
+    PAssert(Kind == DECL_PSTRUCT || Kind == DECL_UNION, "Not a struct or union");
     Decl *D = malloc(sizeof(Decl));
     
     D->name = Name;
     D->kind = Kind;
-    D->aggregate.items = Items; 
+    D->aggregate.Items = Items; 
     D->aggregate.num_items = NumItems;
     
     return D;
 }
 
 Decl *
-ParseDeclCStruct(DeclKind Kind)
+ParseDeclPStruct(DeclKind Kind, const char *Name)
 {
-    PAssert(Kind == DECL_CSTRUCT || Kind == DECL_UNION, "ParseDeclstruct fail\n");
-    TokNext();
-    const char *Name = Tok.Text;
+    PAssert(Kind == DECL_PSTRUCT || Kind == DECL_UNION, "ParseDeclstruct fail\n");
     
     TokNext();
     TokExpect(TOK_LBRACE, "{");
-    Buffer *AggregateItems = malloc(sizeof(Buffer));
-    InitBuffer(AggregateItems);
     
-    while(!IsToken(TOK_EOF) && !IsToken(TOK_RBRACE))
+    AggregateItem *Items = NULL;
+    
+    Items = InitAggregateItemList(Items);
+    
+    while(!IsToken(TOK_RBRACE) && !IsToken(TOK_EOF))
     {
         
-        AddBuf(AggregateItems, ParseDeclAggregateItem());
+        AddAggregateItemList(Items, ParseDeclAggregateItem());
+    }
+    
+    /*for(AggregateItem *It = Items->Next; It != NULL; It = It->Next)
+    {
+        for(AggItemName * Ait = It->Names; Ait != NULL; Ait = Ait->Next)
+    }*/
+    
+    TokExpect(TOK_RBRACE, "}");
+    
+    size_t Len = 4;
+    
+    return DeclAggregate(DECL_PSTRUCT, Name, Items->Next, Len);
+}
+
+EnumItem *
+ParseDeclEnumItem()
+{
+    
+    const char *Name = Tok.Text;
+    TokNext();
+    Expr *Init = NULL;
+    EnumItem *Item = malloc(sizeof(EnumItem));
+    Item->Name = Name;
+    Item->Init = Init;
+    return Item;
+}
+
+Decl *
+DeclEnum(const char *Name, EnumItem *Items, size_t NumItems)
+{
+    Decl *D = malloc(sizeof(Decl));
+    D->name = Name;
+    D->kind = DECL_ENUM;
+    D->EnumDecl.Items = Items;
+    D->EnumDecl.NumItems = NumItems;
+    return D;
+    
+}
+
+size_t ListLen(EnumItem *Items)
+{
+    size_t Counter = 0;
+    for(EnumItem *It = Items; It != NULL; It = It->Next)
+    {
+        Counter++;
         
     }
-    TokNext();
-    TokExpect(TOK_SEMI, ";");
-    size_t Len = LengthOfArray(AggregateItems);
-    printf("Len: %d\n", Len);
-    return DeclAggregate(Kind, Name, AggregateItems, Len);
+    
+    return Counter;
 }
+
+Decl *
+ParseDeclEnum(const char *Name)
+{
+    TokNext();
+    TokExpect(TOK_LBRACE, "{");
+    
+    EnumItem *Items = NULL;
+    
+    if(!IsToken(TOK_RBRACE))
+    {
+        
+        Items = InitEnumItemList(Items, ParseDeclEnumItem());
+        
+        while(IsToken(TOK_COMMA)){
+            TokNext();
+            AddEnumItemToList( Items, ParseDeclEnumItem());
+            
+        }
+    }
+    
+    TokExpect(TOK_RBRACE, "}");
+    
+    return DeclEnum(Name, Items, ListLen(Items));
+}
+
+Decl *
+DeclFunc(const char *Name, FuncParam *Params, size_t NumOfParams, Typespec *ReturnType, StatementList *Block)
+{
+    Decl *Function = malloc(sizeof(Decl));
+    
+    Function->name = Name;
+    Function->kind = DECL_FUNC;
+    Function->Func.Params = Params;
+    Function->Func.NumOfParams = NumOfParams;
+    Function->Func.RetType = ReturnType;
+    Function->Func.Block = Block;
+    return Function;
+}
+
+FuncParam*
+ParseDeclFuncParams()
+{
+    FuncParam*Param = malloc(sizeof(FuncParam));
+    Param->Name = Tok.Text;
+    TokNext();
+    //TokExpect(TOK_COLON, ":");
+    TokNext();
+    Typespec *Type = ParsePType();
+    Param->Type = Type;
+    
+    TokNext();
+    
+    return Param;
+}
+
+Decl *
+ParseDeclOpt(void);
+
+Statement *StatementDecl(Decl *decl)
+{
+    Statement *S = malloc(sizeof(Statement));
+    S->Declaration = decl;
+    return S;
+}
+
+Statement *
+ParseStatement()
+{
+    Decl * decl = ParseDeclOpt();
+    if(decl){
+        return StatementDecl(decl);
+    }
+    
+}
+
+StatementList *
+StmtList(PList *List, size_t NumOfStatements)
+{
+    StatementList *statement = malloc(sizeof(StatementList));
+    statement->Statements = List;
+    statement->NumOfStatements = NumOfStatements;
+    return statement;
+    
+}
+
+StatementList *
+ParseStatementBlock()
+{
+    TokExpect(TOK_LBRACE, "{");
+    
+    PList * RStatementList = CreatePList();
+    while(!IsToken(TOK_EOF) && !IsToken(TOK_RBRACE))
+    {
+        AddToPList(RStatementList, ParseStatement());
+    }
+    
+    /*Statement *StatePtr = NULL; 
+    
+    while((StatePtr = (Statement*)RemoveFromPList(RStatementList)) != NULL)
+    {
+        printf("%s\n", StatePtr->Declaration->name);
+    }*/
+    
+    TokExpect(TOK_RBRACE, "}");
+    
+    return StmtList(RStatementList, 3);
+}
+
+Decl *
+ParseDeclFunction()
+{
+    TokNext();
+    const char *Name = Tok.Text;
+    TokNext();
+    TokExpect(TOK_LPAREN, "(");
+    FuncParam *Params = NULL;
+    
+    if(!IsToken(TOK_RPAREN))
+    {
+        
+        Params = InitFuncParamList(Params, ParseDeclFuncParams());
+        
+        while(IsToken(TOK_COMMA))
+        {
+            TokNext();
+            AddFuncParam(Params, ParseDeclFuncParams());
+            
+        }
+    }
+    
+    /*for(FuncParam *It = Params; It != NULL; It = It->Next)
+    {
+        //printf("ParamNames: %s\n", It->Name);
+    }*/
+    
+    TokNext();
+    TokNext();
+    
+    Typespec *ReturnType = NULL;
+    if(IsToken(TOK_COLON))
+    {
+        TokNext();
+        ReturnType = ParsePType();
+    }
+    TokNext();
+    StatementList *Block = ParseStatementBlock();
+    
+    
+    return DeclFunc(Name, Params, 3, ReturnType, Block);
+}
+
 
 Decl *
 ParseDeclOpt(void)
 {
-    if(strcmp(Tok.Text, "int") == 0){ 
-        return ParseDeclCInt();
-    }
-    else if(strcmp(Tok.Text, "struct") == 0)
+    
+    if(strcmp("fn", Tok.Text) == 0)
     {
-        return ParseDeclCStruct(DECL_CSTRUCT);
+        return ParseDeclFunction();
+    }
+    if(strcmp("typedef", Tok.Text) == 0)
+    {
+        printf("UNIMPLEMENTED\n");
+        return NULL;
     }
     
-    else if(Tok.Kind == TOK_ID)
+    if(Tok.Kind == TOK_ID)
     {
         const char *Name = Tok.Text;
         
@@ -358,9 +532,22 @@ ParseDeclOpt(void)
         
         Typespec *Type = ParsePType();
         
+        if(strcmp("enum", Tok.Text) == 0)
+        {
+            
+            return ParseDeclEnum( Name);
+            
+        }
+        if(Type->kind == TYPESPEC_ARRAY)
+        {
+            
+            return ParseDeclPStruct(DECL_PSTRUCT, Name);
+        }
+        
         Expr *expr = NULL;
         return DeclPVar(Name, Type, expr);
     }
+    
     
     return NULL;
 }
@@ -379,68 +566,213 @@ ParseDecl(void)
     return decl;
 }
 
+Decl *Decls = NULL;
 
 int main(int ArgumentCount, char **Arguments)
 {
-    const char *Source = ReadFile("test.p");
     
-    AddKeyword(IntKeyword);
-    AddKeyword(CharKeyword);
-    AddKeyword(StructKeyword);
+    PList * TestList = CreatePList();
+    Decl *Test1 = malloc(sizeof(Decl));
+    Test1->name = "kef";
+    Decl *Test2 = malloc(sizeof(Decl));
+    Test2->name = "jefff";
+    Decl *Test3 = malloc(sizeof(Decl));
+    Test3->name = "ks33";
+    Decl *Test4 = malloc(sizeof(Decl));
+    Test4->name = "meme";
+    Decl *Test5 = malloc(sizeof(Decl));
+    Test5->name = "lol";
+    
+    AddToPList(TestList, (void *)Test1);
+    AddToPList(TestList, (void *)Test2);
+    AddToPList(TestList, (void *)Test3);
+    AddToPList(TestList, (void *)Test4);
+    AddToPList(TestList, (void *)Test5);
+    //AddToPList(TestList, (void *)Test3);
+    
+    
+    Decl * DeclPtr = NULL;//(Decl*)TestList->Head->Data;
+    while((DeclPtr = (Decl*)RemoveFromPList(TestList)) != NULL)
+    {
+        //printf("%s\n", DeclPtr->name);
+    }
+    
+    const char *Source = ReadFile("test.p");
     
     if(Source)
     {
         PSource = Source;
         
-        Buffer *DeclsBuffer = malloc(sizeof(Buffer)); 
-        InitBuffer(DeclsBuffer);
-        
-        
         TokNext();
+        
+        Decl *Root = malloc(sizeof(Decl));
+        Root->name = "Root";
+        Root->kind = DECL_ROOT;
+        Decls = InitDeclList(Decls, Root);
+        
+        
+        
         while(!IsToken(TOK_EOF))
         {
-            
-            AddBuf(DeclsBuffer, ParseDecl());
+            DeclList(Decls, ParseDecl());
             
         }
         
-        for(int i = 0; i < LengthOfArray(DeclsBuffer); i++)
-        {
-            
-            Decl *it = DeclsBuffer->Data[i];
-            
-            
-            printf("DeclName: %s\n", it->name);
-            
-            printf("DeclKind: %s\n", DeclKindStrings[it->kind]);
-            if(it->kind == DECL_CSTRUCT)
+        printf("\n");
+        
+        bool32 Print = 1;
+        if(Print){
+            for(Decl*It = Decls; It  != NULL; It = It->Next)
             {
+                printf("DeclName: %s\n", It->name);
+                printf("DeclKind: %s\n", DeclKindStrings[It->kind]);
                 
-                /*for(int a = 0; a < LengthOfArray(it->aggregate.items); a++)
+                if(It->kind == DECL_PVAR){
+                    printf("Type: %s\n", TypespecKindStrings[It->var.type->kind]);
+                    printf("\n");
+                    
+                }
+                //printf("\n");
+                
+                if(It->kind == DECL_PSTRUCT)
                 {
                     
-                    
-                    AggregateItem *items  = it->aggregate.items->Data[a];
-                    size_t NumOfItems = items->NumNames;
-                    
-                    printf("%d\n", NumOfItems);
-                    for(int n = 0; n < LengthOfArray(items->Names); n++)
+                    for(AggregateItem *Ait = It->aggregate.Items; Ait != NULL; Ait = Ait->Next)
                     {
-                        //char *Names = items->Names->Data[n];
-                        
+                        for(AggItemName *Nit = Ait->Names; Nit != NULL; Nit = Nit->Next)
+                        {
+                            printf("\t");
+                            printf("Struct var name: %s\n", Nit->Name);
+                            
+                        }
+                        printf("\n");
                     }
                     
-                }*/
-                printf("Num_items: %d\n", it->aggregate.num_items);
+                }
                 
+                else if(It->kind == DECL_ENUM)
+                {
+                    
+                    for(EnumItem *Eit = It->EnumDecl.Items; Eit != NULL; Eit = Eit->Next)
+                    {
+                        printf("\t");
+                        printf("EnumItem: %s\n", Eit->Name);
+                    }
+                    printf("\n");
+                }
+                else if(It->kind == DECL_FUNC)
+                {
+                    
+                    for(FuncParam *Fit = It->Func.Params; Fit != NULL; Fit = Fit->Next)
+                    {
+                        printf("\t");
+                        printf("FuncparamName: %s\n", Fit->Name);
+                        
+                        
+                    }
+                    printf("\n");
+                    
+                    Statement *StatePtr = NULL; //It->Func.Block->Statements;
+                    
+                    while((StatePtr = (Statement*)RemoveFromPList(It->Func.Block->Statements)) != NULL)
+                    {
+                        printf("\t");
+                        printf("Func block vars: %s\n", StatePtr->Declaration->name);
+                        printf("\n");
+                    }
+                }
             }
-            if(it->kind == DECL_CVAR || it->kind == DECL_PVAR)
-                printf("Type: %s\n", TypespecKindStrings[it->var.type->kind]);
-            //printf("Expression: %d\n", it->var.expr->int_val);
-            printf("\n");
+            
         }
-        
     }
     
     return(0);
 }
+
+
+
+
+/*
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct node {
+    void* data;
+    struct node* next;
+} Node;
+
+typedef struct list {
+    int size;
+    Node* head;
+} List;
+
+List* create_list() {
+    List* new_list = (List*)malloc(sizeof(List));
+    new_list->size = 0;
+    new_list->head = NULL;
+    return new_list;
+}
+
+void add_to_list(List* list, void* data) {
+    Node* new_node = (Node*)malloc(sizeof(Node));
+    new_node->data = data;
+    new_node->next = list->head;
+    list->head = new_node;
+    list->size++;
+}
+
+void* remove_from_list(List* list) {
+    if (list->size == 0) {
+        return NULL;
+    }
+    Node* node_to_remove = list->head;
+    void* data = node_to_remove->data;
+    list->head = node_to_remove->next;
+    free(node_to_remove);
+    list->size--;
+    return data;
+}
+
+void free_list(List* list) {
+    Node* current_node = list->head;
+    while (current_node != NULL) {
+        Node* next_node = current_node->next;
+        free(current_node);
+        current_node = next_node;
+    }
+    free(list);
+}
+
+typedef struct Test
+{
+    char *Name;
+    
+}Test;
+
+int main() {
+    // create a new list
+    List* int_list = create_list();
+    
+    Test *test1; //= malloc(sizeof(Test));
+    test1->Name = "Jeff";
+    
+    // add some integers to the list
+    int x = 42;
+    add_to_list(int_list, (void*)&x);
+    int y = 13;
+    add_to_list(int_list, (void*)&y);
+    int z = 99;
+    add_to_list(int_list, (void*)&z);
+    //add_to_list(int_list, (void*)test1);
+    
+    // remove the integers from the list and print them
+    int* int_ptr = NULL;
+    while ((int_ptr = (int*)remove_from_list(int_list)) != NULL) {
+        printf("%d\n", *int_ptr);
+    }
+    
+    // free the memory used by the list
+    free_list(int_list);
+    
+    return 0;
+}*/

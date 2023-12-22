@@ -21,6 +21,8 @@ typedef enum TokenKind
     TOK_RPAREN,
     TOK_LBRACE,
     TOK_RBRACE,
+    TOK_LBRACK,
+    TOK_RBRACK,
     
     TOK_SEMI,
     TOK_BIN_OP,
@@ -41,12 +43,11 @@ typedef enum TokenKind
 PToken Tok;
 
 typedef enum DeclKind {
+    DECL_ROOT,
     DECL_NONE,
     DECL_ENUM,
-    DECL_CSTRUCT,
     DECL_PSTRUCT,
     DECL_UNION,
-    DECL_CVAR,
     DECL_PVAR,
     DECL_CONST,
     DECL_TYPEDEF,
@@ -56,12 +57,11 @@ typedef enum DeclKind {
 
 char * DeclKindStrings[] = 
 {
+    "DECL_ROOT",
     "DECL_NONE",
     "DECL_ENUM",
-    "DECL_CSTRUCT",
     "DECL_PSTRUCT",
     "DECL_UNION",
-    "DECL_CVAR",
     "DECL_PVAR",
     "DECL_CONST",
     "DECL_TYPEDEF",
@@ -109,9 +109,9 @@ typedef enum TypespecKind {
     TYPESPEC_NONE,
     TYPESPEC_NAME,
     TYPESPEC_FUNC,
+    TYPESPEC_ENUM,
     TYPESPEC_ARRAY,
     TYPESPEC_PTR,
-    TYPESPEC_CINT,
     TYPESPEC_I64,
 } TypespecKind;
 
@@ -120,10 +120,9 @@ const char *TypespecKindStrings[ ] =
 {   "TYPESPEC_NONE",
     "TYPESPEC_NAME",
     "TYPESPEC_FUNC",
+    "TYPESPEC_ENUM",
     "TYPESPEC_ARRAY",
     "TYPESPEC_PTR",
-    "TYPESPEC_CINT",
-    "TYPESPEC_INT",
     "TYPESPEC_I64",
 };
 
@@ -144,26 +143,108 @@ typedef struct VarDecl {
 } VarDecl;
 
 
+typedef struct AggItemName
+{
+    const char *Name;
+    struct AggItemName *Next;
+    
+}AggItemName;
+
 typedef struct AggregateItem
 {
     //const char **Names;
-    Buffer * Names;
+    //const char *Name;
+    AggItemName *Names;
     size_t NumNames;
     Typespec *Type;
-    
+    struct AggregateItem *Next;
 }AggregateItem;
 
+typedef struct EnumItem {
+    const char *Name;
+    Expr *Init;
+    struct EnumItem *Next;
+} EnumItem;
+
+
+typedef struct FuncParam {
+    const char *Name;
+    Typespec *Type;
+    struct FuncParam *Next;
+} FuncParam;
+
+typedef enum StatementKind {
+    STMT_NONE,
+    STMT_DECL,
+    STMT_RETURN,
+    STMT_BREAK,
+    STMT_CONTINUE,
+    STMT_BLOCK,
+    STMT_IF,
+    STMT_WHILE,
+    STMT_DO_WHILE,
+    STMT_FOR,
+    STMT_SWITCH,
+    STMT_ASSIGN,
+    STMT_INIT,
+    STMT_EXPR,
+} StatementKind;
+
+typedef struct PList PList;
+
+
+typedef struct Statement Statement;
+
+typedef struct StatementList StatementList;
+struct StatementList
+{
+    PList *Statements;
+    size_t NumOfStatements;
+    
+};
+
+
+struct Statement
+{
+    StatementKind Kind;
+    union
+    {
+        Expr *Expression;
+        struct Decl *Declaration;
+        struct
+        {
+            const char *Name;
+            Expr *Expression;
+        }Initialisation;
+        //StatementList *Block;
+        PList *Block;
+    };
+    
+};
 
 typedef struct Decl {
+    struct Decl *Next;
     DeclKind kind;
     const char *name;
     union {
-        //EnumDecl enum_decl;
+        struct {
+            EnumItem *Items;
+            size_t NumItems;
+            struct EnumDecl *Next;
+        } EnumDecl;
         struct {
             //AggregateItem *items;
-            Buffer *items;
+            //Buffer *items;
+            AggregateItem *Items;
             size_t num_items;
         } aggregate;
+        
+        struct {
+            FuncParam *Params;
+            size_t NumOfParams;
+            Typespec *RetType;
+            StatementList *Block;
+        }Func;
         //FuncDecl func;
         //TypedefDecl typedef_decl;
         VarDecl var;
