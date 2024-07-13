@@ -1,0 +1,267 @@
+ 
+
+
+testing : struct
+{
+
+o : int
+    
+    test1 : struct
+    {
+
+        i : int
+
+    }
+}
+
+ StmtList : struct{
+    stmts : Stmt **
+     num_stmts : usize
+} 
+
+TypespecKind : enum {
+    TYPESPEC_NONE,
+    TYPESPEC_NAME,
+    TYPESPEC_FUNC,
+    TYPESPEC_ARRAY,
+    TYPESPEC_PTR,
+} 
+
+Typespec : struct {
+    kind : TypespecKind
+    //union {
+       name :  char *
+       _func : struct 
+        {
+        args : Typespec **
+            num_args : usize
+            ret : Typespec *
+
+         }
+
+        array : struct
+        {
+        elem : Typespec *
+        size : Expr *
+        } 
+
+        ptr : struct{
+        elem :  Typespec *
+        } 
+      
+   // }
+}
+
+FuncParam : struct{
+    name : char *
+    type : Typespec *
+} 
+
+ AggregateItem : struct{
+    names : char **
+    num_names : usize
+    type :Typespec *
+} 
+
+EnumItem : struct{
+    name : char *
+    init : Expr *
+} 
+
+ DeclKind : enum{
+    DECL_NONE,
+    DECL_ENUM,
+    DECL_STRUCT,
+    DECL_UNION,
+    DECL_VAR,
+    DECL_CONST,
+    DECL_TYPEDEF,
+    DECL_FUNC,
+} 
+
+ Decl : struct{
+    kind :  DeclKind
+    name :  char *
+   // union {
+       
+
+       enum_decl : struct {
+           items :  EnumItem *
+            num_items : usize
+        } 
+
+        aggregate : struct {
+            items : AggregateItem *
+            num_items : usize
+        } 
+       __func : struct {
+            params : FuncParam *
+             num_params : usize
+            ret_type : Typespec *
+             block : StmtList
+        } 
+      typedef_decl:   struct {
+            type : Typespec *
+        } 
+        _var : struct {
+            type : Typespec *
+          expr :   Expr *
+        } 
+        const_decl : struct {
+         expr :    Expr *
+        }
+      
+  //  }
+}
+
+ ExprKind : enum {
+    EXPR_NONE,
+    EXPR_INT,
+    EXPR_FLOAT,
+    EXPR_STR,
+    EXPR_NAME,
+    EXPR_CAST,
+    EXPR_CALL,
+    EXPR_INDEX,
+    EXPR_FIELD,
+    EXPR_COMPOUND,
+    EXPR_UNARY,
+    EXPR_BINARY,
+    EXPR_TERNARY,
+    EXPR_SIZEOF_EXPR,
+    EXPR_SIZEOF_TYPE,
+} 
+
+Compound : struct {
+                type : Typespec *
+               args :  Expr **
+                 num_args : usize
+            } //compound;
+      Cast :  struct {
+            type : Typespec *
+            expr : Expr *
+        } //cast;
+      Unary :  struct {
+             op : TokenKind 
+            expr : Expr *
+        } //unary;
+        Binary :  struct {
+            op : TokenKind 
+            left :Expr *
+          right : Expr *
+        } //binary;
+      Ternary : struct {
+            cond : Expr *
+            then_expr :Expr *
+            else_expr :Expr *
+        } //ternary;
+      Call : struct {
+            expr : Expr *
+            args : Expr **
+            num_args : usize       
+        } //call;
+       Index : struct {
+            expr : Expr *
+            index : Expr *
+        }// index;
+       Field : struct {
+            expr : Expr *
+            name :  char *
+        }// field;
+
+ Expr : struct {
+     kind : ExprKind
+   // union {
+       int_val :  int64
+         float_val : double
+        str_val : char *
+        name : char *
+        sizeof_expr : Expr *
+        sizeof_type : Typespec *
+        compound : Compound
+        cast : Cast
+        unary : Unary
+        binary : Binary
+        ternary : Ternary
+        call : Call
+        index : Index
+        field : Field
+  //  }
+}
+
+ ElseIf : struct {
+    cond : Expr *
+     block : StmtList
+} 
+
+ SwitchCase : struct{
+    exprs : Expr **
+  num_exprs : usize
+     is_default : bool
+     block : StmtList
+}
+
+StmtKind : enum{
+    STMT_NONE,
+    STMT_DECL,
+    STMT_RETURN,
+    STMT_BREAK,
+    STMT_CONTINUE,
+    STMT_BLOCK,
+    STMT_IF,
+    STMT_WHILE,
+    STMT_DO_WHILE,
+    STMT_FOR,
+    STMT_SWITCH,
+    STMT_ASSIGN,
+    STMT_INIT,
+    STMT_EXPR,
+} 
+
+ IfStmt : struct {
+           cond : Expr *
+            then_block : StmtList
+            elseifs : ElseIf *
+            num_elseifs : usize
+             else_block : StmtList          
+        } //if_stmt
+        WhileStmt : struct {
+            cond : Expr *
+            block : StmtList 
+        } //while_stmt;
+       ForStmt :  struct {
+          init : Stmt *
+            cond : Expr *
+            next : Stmt *
+             block : StmtList
+        } //for_stmt;
+       SwitchStmt : struct {
+            expr : Expr *
+          cases :  SwitchCase *
+      num_cases : usize         
+        } //switch_stmt;
+     
+       Assign : struct {
+         op :     TokenKind
+            left : Expr *
+            right : Expr *
+        } //assign;
+       Init : struct {
+            name : char *
+           expr :  Expr *
+        }// init;
+
+ Stmt : struct {
+    kind : StmtKind
+   // union {
+      expr :   Expr *
+        decl : Decl *
+       block : StmtList
+       if_stmt : IfStmt
+       while_stmt : WhileStmt
+   for_stmt : ForStmt
+   switch_stmt :SwitchStmt
+   assign : Assign
+   init : Init
+  //  }
+}

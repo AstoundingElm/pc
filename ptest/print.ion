@@ -1,0 +1,129 @@
+
+print_expr(expr : Expr *) {
+    e := expr
+    switch (e.kind) {
+
+
+    	case EXPR_INT:
+        printf("%d", e.int_val)
+        
+    case EXPR_FLOAT:
+        printf("%f", e.float_val)
+        
+    case EXPR_STR:
+        printf("\"%s\"", e.str_val)
+        
+    case EXPR_NAME:
+        printf("%s", e.name)
+        
+    case EXPR_SIZEOF_EXPR:
+        printf("(sizeof-expr ")
+        print_expr(e.sizeof_expr)
+        printf(")")
+        
+    case EXPR_SIZEOF_TYPE:
+        printf("(sizeof-type ")
+        print_typespec(e.sizeof_type)
+        printf(")")
+        
+    case EXPR_CAST:
+        printf("(cast ")
+        print_typespec(e.cast.type)
+        printf(" ")
+        print_expr(e.cast.expr)
+        printf(")")
+        
+    case EXPR_CALL:
+        printf("(")
+        print_expr(e.call.expr)
+        for it : Expr ** = e.call.args; it != e.call.args + e.call.num_args; it++ {
+            printf(" ")
+            print_expr(*it)
+        }
+        printf(")")
+    case EXPR_INDEX:
+        printf("(index ")
+        print_expr(e.index.expr)
+        printf(" ")
+        print_expr(e.index.index)
+        printf(")")
+       
+    case EXPR_FIELD:
+        printf("(field ")
+        print_expr(e.field.expr)
+        printf(" %s)", e.field.name)
+        
+    case EXPR_COMPOUND:
+        printf("(compound ")
+        if (e.compound.type) {
+            print_typespec(e.compound.type)
+        } else {
+            printf("nil")
+        }
+        for it : Expr ** = e.compound.args; it != e.compound.args + e.compound.num_args; it++ {
+            printf(" ")
+            print_expr(*it)
+        }
+        printf(")")
+        
+    case EXPR_UNARY:
+        printf("(%s ", token_kind_name(e.unary.op))
+        print_expr(e.unary.expr)
+        printf(")")
+        
+    case EXPR_BINARY:
+        printf("(%s ", token_kind_name(e.binary.op))
+        print_expr(e.binary.left)
+        printf(" ")
+        print_expr(e.binary.right)
+        printf(")")
+        
+    case EXPR_TERNARY:
+        printf("(? ")
+        print_expr(e.ternary.cond)
+        printf(" ")
+        print_expr(e.ternary.then_expr)
+        printf(" ")
+        print_expr(e.ternary.else_expr)
+        printf(")")
+        
+    default:
+        #assert(0)
+        
+    }
+
+}
+
+
+print_typespec(type : Typespec *) {
+    t := type
+    switch (t.kind) {
+    	case TYPESPEC_NAME:
+        printf("%s", t.name)
+    }
+}
+
+print_decl(decl : Decl *) 
+{
+	d := decl
+
+	switch(d.kind)
+	{
+	case DECL_VAR:
+		printf("(var %s ", d.name)
+        if (d._var.type) {
+           print_typespec(d._var.type)
+        } else {
+            printf("nil")
+        }
+        printf(" ")
+        if (d._var.expr) {
+            print_expr(d._var.expr)
+        } else {
+            printf("nil")
+        }
+        printf(")")
+
+	}
+
+}

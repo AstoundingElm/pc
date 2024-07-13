@@ -1,0 +1,314 @@
+
+ast_arena : Arena
+
+ast_dup(src : void *, size : usize) -> void * {
+    if size == 0 {
+        return NULL
+    }
+    ptr := arena_alloc(&ast_arena, size)
+    memcpy(ptr, src, size)
+    return ptr
+}
+
+ /*AST_DUP(x : void *) -> void *
+ {
+    ast_dup(x, num_##x * sizeof(*x))
+}*/
+
+decl_enum(name : char *, items : EnumItem *, num_items : usize) -> Decl *{
+    d := decl_new(DECL_ENUM, name)
+    d.enum_decl.items = ast_dup(items, num_items * sizeof(*items))
+    d.enum_decl.num_items = num_items
+    return d
+}
+
+decl_typedef(name : char *, type : Typespec *) -> Decl *{
+    d := decl_new(DECL_TYPEDEF, name)
+    d.typedef_decl.type = type
+    return d
+}
+
+typespec_new(kind : TypespecKind) -> Typespec *{
+    t : Typespec * = ast_alloc(sizeof(Typespec))
+    t.kind = kind
+    return t
+}
+
+typespec_name(name : char *) -> Typespec *{
+    t := typespec_new(TYPESPEC_NAME)
+    t.name = name
+    return t
+
+}
+
+typespec_array(elem : Typespec *, size : Expr *) -> Typespec *{
+    t := typespec_new(TYPESPEC_ARRAY)
+    t.array.elem = elem
+    t.array.size = size
+    return t
+}
+
+typespec_ptr(elem : Typespec *) -> Typespec *{
+    t := typespec_new(TYPESPEC_PTR)
+    t.ptr.elem = elem
+    return t
+}
+
+
+typespec_func(args : Typespec **, num_args : usize, ret : Typespec *) -> Typespec *{
+    t := typespec_new(TYPESPEC_FUNC)
+    t._func.args = ast_dup(args, num_args * sizeof(*args))
+    t._func.num_args = num_args
+    t._func.ret = ret
+    return t
+}
+
+typespec_func fn (args Typespec **, num_args usize, ret Typespec *) Typespec * 
+    t := typespec_new(TYPESPEC_FUNC)
+    t._func.args = ast_dup(args, num_args * sizeof(*args))
+    t._func.num_args = num_args
+    t._func.ret = ret
+    t
+
+ast_alloc(size : usize) -> void * {
+    #assert(size != 0)
+    ptr := arena_alloc(&ast_arena, size)
+    memset(ptr, 0, size)
+    return ptr
+}
+
+
+decl_new(kind : DeclKind, name : char *) -> Decl *{
+    d : Decl * = ast_alloc(sizeof(Decl))
+    d.kind = kind
+    d.name = name
+    return d
+}
+
+decl_const(name : char *, expr : Expr *) -> Decl *{
+    d := decl_new(DECL_CONST, name)
+    d.const_decl.expr = expr
+    return d
+}
+
+decl_func(name : char *, params : FuncParam* , num_params : usize, ret_type : Typespec *, block : StmtList) -> Decl *{
+    d := decl_new(DECL_FUNC, name)
+    d.__func.params = ast_dup(params, num_params * sizeof(*params))
+    d.__func.num_params = num_params
+    d.__func.ret_type = ret_type
+    d.__func.block = block
+    return d
+}
+
+decl_var(name : char *, type : Typespec *, expr : Expr *) -> Decl *{
+    d  := decl_new(DECL_VAR, name)
+    d._var.type = type
+    d._var.expr = expr
+    return d
+}
+
+expr_new( kind : ExprKind) -> Expr * {
+    e : Expr * = ast_alloc(sizeof(Expr))
+    e.kind = kind
+    return e
+}
+
+expr_sizeof_expr(expr : Expr *) -> Expr *{
+    e : Expr * = expr_new(EXPR_SIZEOF_EXPR)
+    e.sizeof_expr = expr
+    return e
+}
+
+expr_sizeof_type(type : Typespec *) -> Expr * {
+    e := expr_new(EXPR_SIZEOF_TYPE)
+    e.sizeof_type = type
+    return e
+}
+
+expr_int(int_val: int64) -> Expr * {
+    e := expr_new(EXPR_INT)
+    e.int_val = int_val
+    return e
+}
+
+expr_float(float_val : double)  -> Expr *{
+    e := expr_new(EXPR_FLOAT)
+    e.float_val = float_val
+    return e
+}
+
+expr_str(str_val : char *) -> Expr * {
+    e := expr_new(EXPR_STR)
+    e.str_val = str_val
+    return e
+}
+
+expr_name(name : char *) -> Expr * {
+    e := expr_new(EXPR_NAME)
+    e.name = name
+    return e
+}
+
+expr_compound(type : Typespec *, args : Expr **, num_args : usize)  -> Expr * {
+    e := expr_new(EXPR_COMPOUND)
+    e.compound.type = type
+    e.compound.args = ast_dup(args, num_args * sizeof(*args))
+    e.compound.num_args = num_args
+    return e
+}
+
+expr_cast(type : Typespec *, expr : Expr *)  -> Expr *{
+    e := expr_new(EXPR_CAST)
+    e.cast.type = type
+    e.cast.expr = expr
+    return e
+}
+
+expr_call(expr : Expr *, args : Expr **,  num_args : usize)  -> Expr *{
+    e := expr_new(EXPR_CALL)
+    e.call.expr = expr
+    e.call.args = ast_dup(args, num_args * sizeof(*args))
+    e.call.num_args = num_args
+    return e
+}
+
+expr_index(expr : Expr *, index : Expr *)  -> Expr * {
+    e := expr_new(EXPR_INDEX)
+    e.index.expr = expr
+    e.index.index = index
+    return e
+}
+
+expr_field(expr : Expr *, name : char *) -> Expr *{
+    e := expr_new(EXPR_FIELD)
+    e.field.expr = expr
+    e.field.name = name
+    return e
+}
+
+expr_unary(op : TokenKind, expr : Expr *) ->Expr * {
+    e := expr_new(EXPR_UNARY)
+    e.unary.op = op
+    e.unary.expr = expr
+    return e
+}
+
+expr_binary(op : TokenKind, left : Expr *, right : Expr *) -> Expr * {
+    e := expr_new(EXPR_BINARY)
+    e.binary.op = op
+    e.binary.left = left
+    e.binary.right = right
+    return e
+}
+
+expr_ternary(cond : Expr *, then_expr : Expr *, else_expr : Expr *) ->Expr *{
+    e := expr_new(EXPR_TERNARY)
+    e.ternary.cond = cond
+    e.ternary.then_expr = then_expr
+    e.ternary.else_expr = else_expr
+    return e
+}
+
+stmt_list(stmts : Stmt **,  num_stmts : usize) -> StmtList{
+    stmt_list : StmtList = {0}
+
+    stmt_list.stmts = ast_dup (stmts, num_stmts * sizeof(stmts))
+    stmt_list.num_stmts = num_stmts
+
+        return stmt_list
+    //{AST_DUP(stmts), num_stmts};
+}
+
+stmt_block(block : StmtList) -> Stmt * {
+    s := stmt_new(STMT_BLOCK)
+    s.block = block
+    return s
+}
+
+stmt_break() -> Stmt *{
+    return stmt_new(STMT_BREAK)
+}
+
+stmt_continue() -> Stmt *{
+    return stmt_new(STMT_CONTINUE)
+}
+
+stmt_return(expr : Expr *) -> Stmt *{
+    s := stmt_new(STMT_RETURN)
+    s.expr = expr
+    return s
+}
+
+stmt_decl(decl : Decl *) -> Stmt *{
+    s := stmt_new(STMT_DECL)
+    s.decl = decl
+    return s
+}
+
+stmt_if(cond : Expr *,  then_block : StmtList, elseifs : ElseIf *, num_elseifs : usize, else_block : StmtList) -> Stmt *{
+    s := stmt_new(STMT_IF)
+    s.if_stmt.cond = cond
+    s.if_stmt.then_block = then_block
+    s.if_stmt.elseifs = ast_dup(elseifs, num_elseifs * sizeof(*elseifs))
+    s.if_stmt.num_elseifs = num_elseifs
+    s.if_stmt.else_block = else_block
+    return s
+}
+
+stmt_new(kind : StmtKind) -> Stmt *{
+    s : Stmt * = ast_alloc(sizeof(Stmt))
+    s.kind = kind
+    return s
+}
+
+stmt_while(cond : Expr *, block : StmtList) -> Stmt *{
+    s := stmt_new(STMT_WHILE)
+    s.while_stmt.cond = cond
+    s.while_stmt.block = block
+    return s
+}
+
+stmt_do_while(cond : Expr *,  block : StmtList) -> Stmt *{
+    s := stmt_new(STMT_DO_WHILE)
+    s.while_stmt.cond = cond
+    s.while_stmt.block = block
+    return s
+}
+   
+stmt_for(init : Stmt *, cond : Expr *, next : Stmt *,  block : StmtList) -> Stmt *{
+    s := stmt_new(STMT_FOR)
+    s.for_stmt.init = init
+    s.for_stmt.cond = cond
+    s.for_stmt.next = next
+    s.for_stmt.block = block
+    return s
+}
+
+stmt_switch(expr : Expr *, cases : SwitchCase *, num_cases : usize) -> Stmt *{
+    s := stmt_new(STMT_SWITCH)
+    s.switch_stmt.expr = expr
+    s.switch_stmt.cases = ast_dup(cases, num_cases * sizeof(*cases))
+    s.switch_stmt.num_cases = num_cases
+    return s
+}
+
+stmt_assign(op : TokenKind, left : Expr *, right : Expr *) -> Stmt *{
+    s := stmt_new(STMT_ASSIGN)
+    s.assign.op = op
+    s.assign.left = left
+    s.assign.right = right
+    return s
+}
+
+stmt_init(name : char *, expr : Expr *) -> Stmt *{
+    s := stmt_new(STMT_INIT)
+    s.init.name = name
+    s.init.expr = expr
+    return s
+}
+
+stmt_expr(expr : Expr *) -> Stmt *{
+    s := stmt_new(STMT_EXPR)
+    s.expr = expr
+    return s
+}

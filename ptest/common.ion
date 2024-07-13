@@ -1,0 +1,218 @@
+import  libc{...}
+
+
+MAX(x : i64, y : i64) -> i64
+{
+
+		return ((x) >= (y) ? (x) : (y)) 
+
+}
+
+func align_down_uint(x: uint, alignment: uint): uint {
+    return x & ~(alignment - 1)
+}
+
+func align_up_uint(x: uint, alignment: uint): uint {
+    return (x + alignment - 1) & ~(alignment - 1)
+}
+
+func align_down_ptr(ptr: void*, alignment: uintptr): void* {
+    return (:void*)(uintptr(ptr) & ~(alignment - 1))
+}
+
+func align_up_ptr(ptr: void*, alignment: uintptr): void* {
+    return (:void*)((uintptr(ptr) + alignment - 1) & ~(alignment - 1))
+}
+
+@foreign("buf_len")
+func buf_len(x : void *) : usize
+
+@foreign("buf_push")
+func buf_push(x : void *, ...) : void *
+
+@foreign("buf_free")
+func buf_free(a: void *) : void *
+
+@foreign("buf_end")
+func buf_end(a : void *) : void *
+
+xrealloc(ptr : void *, num_bytes : usize) ->void *
+{
+
+	ptr = realloc(ptr, num_bytes)
+	if(!ptr)
+	{
+		perror("xrealloc failed")
+		exit(1)
+	}
+
+	return ptr
+
+}
+
+xmalloc(num_bytes : usize) ->void *
+{
+	ptr : void * = malloc(num_bytes)
+	if(!ptr){
+
+		perror("xmalloc failed")
+		exit(1)
+	}
+
+	return ptr
+
+}
+
+fatal(fmt : char *, ...)
+{
+
+	args : va_list
+	va_start(args, fmt)
+	printf("FATAL: ")
+	vprintf(fmt,args)
+	printf("\n")	
+	va_end(args)
+	exit(1)
+}
+
+syntax_error(fmt : char *, ...) {
+    args : va_list
+    va_start(args, fmt)
+    printf("Syntax Error: ")
+    vprintf(fmt, args)
+    printf("\n")
+    va_end(args)
+}
+
+fatal_syntax_error(fmt : char *, ...) {
+    args : va_list
+    va_start(args, fmt)
+    printf("Syntax Error: ")
+    vprintf(fmt, args)
+    printf("\n")
+    va_end(args)
+    exit(1)
+}
+
+
+
+token_info() -> char * {
+    if (token.kind == TOKEN_NAME || token.kind == TOKEN_KEYWORD) {
+        return token.name
+    } else {
+        return token_kind_name(token.kind)
+    }
+}
+
+ Arena : struct{
+    ptr : char*
+    end : char *
+    blocks : char **
+} 
+
+
+ARENA_ALIGNMENT : i64 = 8
+//#define ARENA_BLOCK_SIZE (1024 * 1024)
+ARENA_BLOCK_SIZE : i64 = 1024
+
+arena_grow(arena : Arena *, min_size : usize) {
+    size :  usize = align_down_uint(MAX(ARENA_BLOCK_SIZE, min_size), ARENA_ALIGNMENT)
+    arena.ptr = xmalloc(size)
+    arena.end = arena.ptr + size
+    buf_push(arena.blocks, arena.ptr)
+}
+
+arena_alloc(arena : Arena *, size : usize ) -> void *{
+    if (size > (:usize)(arena.end - arena.ptr)) {
+        arena_grow(arena, size)
+        #assert(size <= (:usize)(arena.end - arena.ptr))
+    }
+    ptr : void * = arena.ptr
+    arena.ptr = align_up_ptr(arena.ptr + size, ARENA_ALIGNMENT)
+    #assert(arena.ptr <= arena.end)
+    #assert(ptr == align_down_ptr(ptr, ARENA_ALIGNMENT))
+    return ptr
+}
+
+arena_free(arena : Arena ) -> void {
+    for it : char ** = arena.blocks; it != buf_end(arena.blocks); it++ {
+        free(*it)
+    }
+}
+
+// String interning
+
+ Intern : struct {
+    len : usize
+    str : char *
+} 
+
+str_arena : Arena
+interns : Intern *
+
+str_intern_range(start : char *, end : char *) -> char *{
+    len : usize = end - start
+    for it : Intern * = interns; it != buf_end(interns); it++ {
+        if (it.len == len && strncmp(it.str, start, len) == 0) {
+            return it.str
+        }
+    }
+    str : char * = arena_alloc(&str_arena, len + 1)
+    memcpy(str, start, len)
+    str[len] = 0
+
+    temp := Intern {len = len, str = str}
+    buf_push(interns, temp)
+    return str
+}
+
+
+
+str_intern(str : char *) -> char *{
+    return str_intern_range(str, str + strlen(str))
+}
+
+intern_test() {
+     a : char[] = "hello"
+    #assert(strcmp(a, str_intern(a)) == 0)
+    #assert(str_intern(a) == str_intern(a))
+    #assert(str_intern(str_intern(a)) == str_intern(a))
+    b: char[] = "hello"
+    #assert(a != b)
+    #assert(str_intern(a) == str_intern(b))
+    c : char[] = "hello!"
+    #assert(str_intern(a) != str_intern(c))
+    d : char[] = "hell"
+    #assert(str_intern(a) != str_intern(d))
+}
+
+buf_test()
+{
+
+     buf : int * = NULL
+    #assert(buf_len(buf) == 0)
+    
+    n : int = 1024
+    for  i : int = 0; i < n; i++ {
+        buf_push(buf, i)
+    }
+
+
+
+    #assert(buf_len(buf) == n)
+    for i : int = 0; i < buf_len(buf); i++ {
+        #assert(buf[i] == i)
+    }
+
+    buf_free(buf)
+    #assert(buf == NULL)
+    #assert(buf_len(buf) == 0)
+   
+}
+
+common_test()
+{
+
+    buf_test()
+    intern_test()
+}
