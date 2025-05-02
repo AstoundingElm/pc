@@ -1,0 +1,1 @@
+IONARCH: ^char  = "x86";

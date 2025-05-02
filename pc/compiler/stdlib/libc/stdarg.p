@@ -1,0 +1,13 @@
+// TODO: va_start, va_end, va_copy should be intrinsics as well, for lvalueness checking.
+
+@foreign @intrinsic
+func va_start(args: va_list, arg: void);
+
+@foreign @intrinsic
+func va_end(args: va_list);
+
+@foreign @intrinsic
+func va_copy(args: va_list, src: va_list);
+
+@foreign @intrinsic
+func va_arg(args: va_list, arg: void ) : void *;
